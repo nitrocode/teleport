@@ -1360,6 +1360,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
