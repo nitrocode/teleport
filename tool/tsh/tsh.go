@@ -2813,9 +2813,10 @@ func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 
 func serializeProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus, format string) (string, error) {
 	profileData := struct {
-		Active   *profileInfo   `json:"active,omitempty"`
-		Profiles []*profileInfo `json:"profiles"`
-	}{makeProfileInfo(profile), []*profileInfo{}}
+		Active   *profileInfo      `json:"active,omitempty"`
+		Profiles []*profileInfo    `json:"profiles"`
+		Env      map[string]string `json:"environment,omitempty"`
+	}{makeProfileInfo(profile), []*profileInfo{}, getStatusEnv()}
 	for _, prof := range profiles {
 		profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
 	}
@@ -2832,6 +2833,17 @@ func serializeProfiles(profile *client.ProfileStatus, profiles []*client.Profile
 	return string(out), nil
 }
 
+func getStatusEnv() map[string]string {
+	env := map[string]string{}
+	envVars := []string{proxyEnvVar, clusterEnvVar, siteEnvVar, userEnvVar}
+	for _, envVar := range envVars {
+		if envVal := os.Getenv(envVar); envVal != "" {
+			env[envVar] = envVal
+		}
+	}
+	return env
+}
+
 func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	if profile == nil && len(profiles) == 0 {
 		return
@@ -2845,6 +2857,15 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	// Print all other profiles.
 	for _, p := range profiles {
 		printStatus(debug, p, false)
+	}
+
+	// Print relevant active env vars, if they are set.
+	env := getStatusEnv()
+	if len(env) > 0 {
+		fmt.Println("Active Environment")
+	}
+	for k, v := range env {
+		fmt.Printf("%s=%s\n", k, v)
 	}
 }
 
