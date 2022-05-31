@@ -1916,6 +1916,31 @@ func TestSerializeProfilesNoActive(t *testing.T) {
 	})
 }
 
+func TestSerializeProfilesWithEnvVars(t *testing.T) {
+	cluster := "main"
+	site := "main"
+	user := "alice"
+	proxy := "example.com"
+	t.Setenv(clusterEnvVar, cluster)
+	t.Setenv(siteEnvVar, site)
+	t.Setenv(userEnvVar, user)
+	t.Setenv(proxyEnvVar, proxy)
+	expected := fmt.Sprintf(`
+{
+  "profiles": [],
+  "environment": {
+    %q: %q,
+    %q: %q,
+    %q: %q,
+    %q: %q
+  }
+}
+`, clusterEnvVar, cluster, siteEnvVar, site, userEnvVar, user, proxyEnvVar, proxy)
+	testSerialization(t, expected, func(f string) (string, error) {
+		return serializeProfiles(nil, nil, f)
+	})
+}
+
 func TestSerializeEnvironment(t *testing.T) {
 	expected := fmt.Sprintf(`
 	{
