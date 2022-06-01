@@ -2142,7 +2142,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	requestReason := cf.RequestReason
 	if requestReason == "" {
 		// Prompt for a request reason.
-		requestReason, err = prompt.Input(cf.Context, os.Stdout, prompt.Stdin(), "Enter request reason (Ctrl-C to cancel)")
+		requestReason, err = prompt.Input(cf.Context, os.Stdout, prompt.Stdin(), "Enter request reason")
 		if err != nil {
 			return trace.Wrap(err)
 		}
