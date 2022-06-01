@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -491,56 +492,45 @@ func TestMakeClient(t *testing.T) {
 	require.Greater(t, len(agentKeys), 0)
 }
 
-type accessRequestApprover struct {
-	stop chan struct{}
-	done chan struct{}
-}
+// approveAllAccessRequests starts a loop which gets all pending AccessRequests
+// from access and approves them. It accepts a stop channel, which will stop the
+// loop and cancel all active requests when it is closed.
+func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{}) (err error) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-func newAccessRequestApprover(t *testing.T, access services.DynamicAccess) *accessRequestApprover {
-	// set up a goroutine to approve all requests as they're created
-	stop := make(chan struct{})
-	done := make(chan struct{})
+	// Make a context that will be cancelled when the stop chan is closed, to
+	// pass to the requests.
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		defer close(done)
-		ticker := time.Tick(500 * time.Millisecond)
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			<-stop
-			cancel()
-		}()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-ticker:
-			}
-			requests, err := access.GetAccessRequests(ctx,
-				types.AccessRequestFilter{
-					State: types.RequestState_PENDING,
+		<-stop
+		cancel()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		requests, err := access.GetAccessRequests(ctx,
+			types.AccessRequestFilter{
+				State: types.RequestState_PENDING,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, req := range requests {
+			err = access.SetAccessRequestState(ctx,
+				types.AccessRequestUpdate{
+					RequestID: req.GetName(),
+					State:     types.RequestState_APPROVED,
 				})
-			require.NoError(t, err)
-			for _, req := range requests {
-				err = access.SetAccessRequestState(ctx,
-					types.AccessRequestUpdate{
-						RequestID: req.GetName(),
-						State:     types.RequestState_APPROVED,
-					})
-				require.NoError(t, err)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
-	}()
-	return &accessRequestApprover{
-		stop: stop,
-		done: done,
 	}
-}
-
-// Close signals the accessRequestApprover to cancel all requests, and waits for
-// all goroutines to exit.
-func (a *accessRequestApprover) Close() error {
-	close(a.stop)
-	<-a.done
-	return nil
 }
 
 // TestSSHAccessRequest tests that a user can automatically request access to a
@@ -571,6 +561,10 @@ func TestSSHAccessRequest(t *testing.T) {
 	alice.SetTraits(traits)
 
 	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, connector, alice))
+	defer func() {
+		require.NoError(t, rootProxy.Close())
+		require.NoError(t, rootAuth.Close())
+	}()
 
 	authAddr, err := rootAuth.AuthSSHAddr()
 	require.NoError(t, err)
@@ -620,8 +614,19 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.Error(t, err)
 
 	// approve all requests as they're created
-	approver := newAccessRequestApprover(t, rootAuth.GetAuthServer())
-	defer approver.Close()
+	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
+	}()
 
 	// ssh with request, by hostname
 	err = Run([]string{
@@ -770,8 +775,19 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	require.NoError(t, err)
 
 	// approve all requests as they're created
-	approver := newAccessRequestApprover(t, rootAuth.GetAuthServer())
-	defer approver.Close()
+	errChan := make(chan error)
+	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
+		if !errors.Is(err, context.Canceled) {
+			// Kill auth so Run calls don't hang. Don't worry about the Close
+			// error, the test will already fail.
+			rootAuth.Close()
+		}
+		errChan <- err
+	}()
 
 	err = Run([]string{
 		"request",
