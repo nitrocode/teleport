@@ -983,3 +983,16 @@ and non interactive tsh bench loads.
 - Verify tsh runs on:
   - [ ] Windows 10
   - [ ] MacOS
+
+## Host users creation
+- Verify host users creation functionality
+  - [ ] non-existing users are created automatically
+  - [ ] users are added to groups
+    - [ ] non existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
+  - [ ] sudoers file creation is successful
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
+  - [ ] setting `disable_create_host_user: true` stops user creation from occurring
