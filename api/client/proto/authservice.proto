@@ -1680,6 +1680,12 @@ message PresenceMFAChallengeSend {
     }
 }
 
+// GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
+message GetOIDCAuthRequestRequest {
+    // StateToken is an oidc auth request state token.
+    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
@@ -1967,6 +1973,10 @@ service AuthService {
     rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
     // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
     rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateOIDCAuthRequest creates OIDCAuthRequest.
+    rpc CreateOIDCAuthRequest(types.OIDCAuthRequest) returns (types.OIDCAuthRequest);
+    // GetOIDCAuthRequest returns OIDC auth request if found.
+    rpc GetOIDCAuthRequest(GetOIDCAuthRequestRequest) returns (types.OIDCAuthRequest);
 
     // GetSAMLConnector gets a SAML connector resource by name.
     rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
