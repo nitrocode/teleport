@@ -2082,22 +2082,15 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	}
 	defer proxyClient.Close()
 
-	// First search by hostname, then host ID
+	// Match on hostname or host ID, user could have given either
+	expr := fmt.Sprintf(`resource.spec.hostname == "%[1]s" || name == "%[1]s"`, tc.Host)
 	filter := proto.ListResourcesRequest{
-		UseSearchAsRoles: true,
+		UseSearchAsRoles:    true,
+		PredicateExpression: expr,
 	}
-	hostNameExpr := fmt.Sprintf(`resource.spec.hostname == "%s"`, tc.Host)
-	hostIDExpr := fmt.Sprintf(`name == "%s"`, tc.Host)
-	var nodes []types.Server
-	for _, expr := range []string{hostNameExpr, hostIDExpr} {
-		filter.PredicateExpression = expr
-		nodes, err = proxyClient.FindNodesByFilters(ctx, filter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(nodes) > 0 {
-			break
-		}
+	nodes, err := proxyClient.FindNodesByFilters(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if len(nodes) > 1 {
 		// Ambiguous hostname matches should have been handled by onSSH and
@@ -2106,22 +2099,20 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 		return nil, trace.NotFound("hostname %q is ambiguous and matches multiple nodes, unable to request access", tc.Host)
 	}
 	if len(nodes) == 0 {
-		// Did not find any nodes by hostname or ID
+		// Did not find any nodes by hostname or ID.
 		return nil, trace.NotFound("node %q not found, unable to request access", tc.Host)
 	}
 
-	var requestResourceIDs []types.ResourceID
-	for _, node := range nodes {
-		requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-			ClusterName: tc.SiteName,
-			Kind:        types.KindNode,
-			Name:        node.GetName(),
-		})
-	}
+	// At this point we have exactly 1 node.
+	node := nodes[0]
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindNode,
+		Name:        node.GetName(),
+	}}
 
 	// Roles to request will be automatically determined on the backend.
-	var roles []string
-	req, err := services.NewAccessRequestWithResources(tc.Username, roles, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
