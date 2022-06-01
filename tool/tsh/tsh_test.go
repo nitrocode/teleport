@@ -585,7 +585,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	// wait for auth to see node
 	var sshHostID string
 	require.Eventually(t, func() bool {
-		nodes, err := rootAuth.GetAuthServer().GetNodes(context.TODO(), apidefaults.Namespace)
+		nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
 		require.NoError(t, err)
 		for _, node := range nodes {
 			if node.GetHostname() == sshHostname {
