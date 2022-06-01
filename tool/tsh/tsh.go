@@ -3084,7 +3084,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 // awaitResolution waits for the request to be resolved (state != PENDING).
 func (w *accessRequestWatcher) awaitResolution() (types.AccessRequest, error) {
 	if w.watcher == nil {
-		return nil, trace.BadParameter("must initialize accessRequestWatcher before calling get()")
+		return nil, trace.BadParameter("must initialize accessRequestWatcher before calling awaitResolution()")
 	}
 
 	for {
