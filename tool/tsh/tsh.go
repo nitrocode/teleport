@@ -84,6 +84,8 @@ const (
 	mfaModeAuto          = "auto"
 	mfaModeCrossPlatform = "cross-platform"
 	mfaModePlatform      = "platform"
+
+	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -2083,7 +2085,7 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	defer proxyClient.Close()
 
 	// Match on hostname or host ID, user could have given either
-	expr := fmt.Sprintf(`resource.spec.hostname == "%[1]s" || name == "%[1]s"`, tc.Host)
+	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
 	filter := proto.ListResourcesRequest{
 		UseSearchAsRoles:    true,
 		PredicateExpression: expr,
@@ -2210,15 +2212,12 @@ func onSSH(cf *CLIConf) error {
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-				allNodes, err := tc.ListAllNodes(cf.Context)
+				// Match on hostname or host ID, user could have given either
+				expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
+				tc.PredicateExpression = expr
+				nodes, err := tc.ListNodesWithFilters(cf.Context)
 				if err != nil {
 					return trace.Wrap(err)
-				}
-				var nodes []types.Server
-				for _, node := range allNodes {
-					if node.GetHostname() == tc.Host {
-						nodes = append(nodes, node)
-					}
 				}
 				fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
 				printNodesAsText(nodes, true)
