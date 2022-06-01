@@ -3069,7 +3069,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 	select {
 	case event := <-w.watcher.Events():
 		if event.Type != types.OpInit {
-			return trace.BadParameter("first event is not OpInit?")
+			return trace.BadParameter("failed to watch for access requests: received an unexpected event while waiting for the initial OpInit")
 		}
 	case <-w.watcher.Done():
 		return trace.Wrap(w.watcher.Error())
